@@ -12,14 +12,14 @@ const int BUZZER_PIN = 5;   // buzzer → alarme de obstáculo
 // =========================
 // Parâmetros de amostragem
 // =========================
-float Ts = 0.03f;  // 50ms
+float Ts = 0.05f;  // 50ms
 
 // =========================
 // Faixa do sensor
 // =========================
-const float DIST_MIN_VALIDA  = 10.0f;
+const float DIST_MIN_VALIDA  = 20.0f;
 const float DIST_MAX_VALIDA  = 300.0f;
-const float DIST_MIN_PROJETO = 10.0f;
+const float DIST_MIN_PROJETO = 20.0f;
 const float DIST_MAX_PROJETO = 300.0f;
 const float DIST_RANGE       = DIST_MAX_PROJETO - DIST_MIN_PROJETO;
 
