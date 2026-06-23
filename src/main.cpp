@@ -1,6 +1,6 @@
 // =========================================================
 // PROJETO H-DROP — código principal (Arduino Uno prototipagem)
-// 3 ultrassônicos com filtro 5 camadas + MPU-6050
+// 3 ultrassônicos com filtro 5 camadas + MPU-6050 + célula de carga
 // Referência para portagem ao ESP-IDF (ETAPA 6 + ETAPA 2)
 // =========================================================
 // Ultrassônicos (trigger/echo):
@@ -9,11 +9,16 @@
 //   Direito  (-90°) -> TRIG=9,  ECHO=10
 // MPU-6050 (I2C):
 //   SDA -> A4 | SCL -> A5 | VCC -> 5V | GND -> GND
+// Célula de carga (HX711):
+//   DOUT -> 6 | SCK -> 7 | VCC -> 5V | GND -> GND
+// Fita LED (indicador intermitente):
+//   Pino 8
 // Alimentação sensores: fonte MB102 5V com GND comum ao Arduino
 // =========================================================
 
 #include <Arduino.h>
 #include <Wire.h>
+#include <HX711.h>
 
 // ============================================================
 // ULTRASSÔNICOS — filtro 5 camadas (portar para hdrop_avoidance)
@@ -165,6 +170,27 @@ static void mpuLeMotion() {
 }
 
 // ============================================================
+// CÉLULA DE CARGA — HX711
+// ============================================================
+const int LOADCELL_DOUT_PIN = 6;
+const int LOADCELL_SCK_PIN  = 7;
+
+const float LOADCELL_CALIBRATION_FACTOR = 1.0f;  // ajustar após calibração com peso conhecido
+
+HX711 scale;
+float peso_kg    = 0.0f;
+bool  loadcell_ok = false;
+
+// ============================================================
+// FITA LED — indicador intermitente
+// ============================================================
+const int           LED_PIN      = 8;
+const unsigned long LED_BLINK_MS = 500UL;
+
+unsigned long t_led_prev_ms = 0;
+bool          led_state     = false;
+
+// ============================================================
 // SETUP / LOOP
 // ============================================================
 const unsigned long Ts_ms = 50UL;
@@ -187,6 +213,18 @@ void setup() {
     Serial.print("MPU-6050: ");
     Serial.println(mpu_ok ? "OK" : "NAO detectado");
 
+    scale.begin(LOADCELL_DOUT_PIN, LOADCELL_SCK_PIN);
+    loadcell_ok = scale.wait_ready_timeout(1000);
+    if (loadcell_ok) {
+        scale.set_scale(LOADCELL_CALIBRATION_FACTOR);
+        scale.tare();
+    }
+    Serial.print("Celula de carga: ");
+    Serial.println(loadcell_ok ? "OK" : "NAO detectada");
+
+    pinMode(LED_PIN, OUTPUT);
+    digitalWrite(LED_PIN, LOW);
+
     t_prev_ms = millis();
 }
 
@@ -203,6 +241,16 @@ void loop() {
     // MPU
     if (mpu_ok) mpuLeMotion();
 
+    // Célula de carga
+    if (loadcell_ok && scale.is_ready()) peso_kg = scale.get_units(1);
+
+    // Fita LED — pisca a cada LED_BLINK_MS (não bloqueante)
+    if (millis() - t_led_prev_ms >= LED_BLINK_MS) {
+        t_led_prev_ms += LED_BLINK_MS;
+        led_state = !led_state;
+        digitalWrite(LED_PIN, led_state ? HIGH : LOW);
+    }
+
     // ---- Teleplot ----
     // Obstáculos (espelha obs:{f,l,r} do hdrop_avoidance)
     Serial.print(">f:");  Serial.print(usSensor[0].dist_ema, 1);
@@ -217,5 +265,7 @@ void loop() {
     Serial.print(",az:"); Serial.print(accel_z, 3);
     Serial.print(",gx:"); Serial.print(gyro_x, 2);
     Serial.print(",gy:"); Serial.print(gyro_y, 2);
-    Serial.print(",gz:"); Serial.println(gyro_z, 2);
+    Serial.print(",gz:"); Serial.print(gyro_z, 2);
+    // Célula de carga
+    Serial.print(",peso:"); Serial.println(peso_kg, 3);
 }
